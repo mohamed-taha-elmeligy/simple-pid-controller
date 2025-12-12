@@ -72,9 +72,9 @@ public class HelloController implements Initializable {
         double ki = 4.0;    // قيمة محسوبة
         double kd = 0.5;    // قيمة محسوبة
 
-        tfKp.setText(String.format("%.2f", kp));
-        tfKi.setText(String.format("%.2f", ki));
-        tfKd.setText(String.format("%.2f", kd));
+        tfKp.setText(String.valueOf(kp));
+        tfKi.setText(String.valueOf(ki));
+        tfKd.setText(String.valueOf(kd));
 
         System.out.println(String.format(
                 "Optimal PID Gains (ζ=%.1f, ωn=%.1f):\n Kp=%.2f, Ki=%.2f, Kd=%.2f",
