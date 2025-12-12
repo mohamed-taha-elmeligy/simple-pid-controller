@@ -2,23 +2,17 @@ package com.emts.controlpid;
 import javafx.scene.chart.XYChart;
 
 /**
- * *******************************************************************
- * File: null.java
- * Package: com.emts.controlpid
- * Project: eMTS Smart Attendance System
- * © ٢٠٢٥ Mohamed Taha Elmeligy - eMTS (e Modern Tech Solutions)
- * This file is part of the eMTS Smart Attendance System.
- * Created on: 26/11/2025
- * Port Number: 8083
- * *******************************************************************
+ * محاكاة النظام: G(s) = 4/(s² + 2s)
+ * المواصفات: ζ = 0.5, ωn = 2 rad/s
+ * الدخل: r(t) = 1 (step response)
  */
-
 public class Simulation {
 
     public static class SimulationResult {
         public final double[] time;
         public final double[] outputBefore;
         public final double[] outputAfter;
+        public final double[] controlSignal;
         public final java.util.List<XYChart.Data<Number, Number>> beforeSeries;
         public final java.util.List<XYChart.Data<Number, Number>> afterSeries;
 
@@ -26,67 +20,76 @@ public class Simulation {
             time = new double[n];
             outputBefore = new double[n];
             outputAfter = new double[n];
+            controlSignal = new double[n];
             beforeSeries = new java.util.ArrayList<>();
             afterSeries = new java.util.ArrayList<>();
         }
     }
 
-    // run with only this plant G(s)=4/(s(s+2))
+    /**
+     * تشغيل المحاكاة
+     * @param kp معامل التناسب
+     * @param ki معامل التكامل
+     * @param kd معامل الاشتقاق
+     */
     public static SimulationResult run(double kp, double ki, double kd) {
-
-        double dt = 0.01;
-        int N = 2000;
+        double dt = 0.01;  // خطوة الوقت
+        int N = 2000;      // عدد الخطوات (20 ثانية)
 
         SimulationResult result = new SimulationResult(N);
 
-        // states for open-loop and closed-loop
-        double x1_before = 0, x2_before = 0;
-        double x1_after  = 0, x2_after  = 0;
+        // حالات النظام المفتوح: x1=y, x2=dy/dt
+        double x1_open = 0.0;
+        double x2_open = 0.0;
 
-        double integ = 0;
-        double prevErr = 0;
+        // حالات النظام المغلق
+        double x1_closed = 0.0;
+        double x2_closed = 0.0;
+
+        // متغيرات PID
+        PID pidController = new PID(kp, ki, kd);
+
+        // الدخل المرجعي
+        double r = 1.0; // step input
 
         for (int k = 0; k < N; k++) {
             double t = k * dt;
-            double r = 1.0; // step input
 
-            // ===== BEFORE PID (Open-Loop) =====
-            double u_before = r; // <-- هنا الصلاح: استخدم الإشارة step كدخل
-            double y_before = x1_before;
+            // ========== النظام المفتوح (بدون PID) ==========
+            // الدخل المباشر هو الخطوة
+            double u_open = r;
+            double y_open = x1_open;
 
-            // plant state updates: dx1 = x2, dx2 = -2*x2 + 4*u
-            double dx1_b = x2_before;
-            double dx2_b = -2.0 * x2_before + 4.0 * u_before;
+            // تحديث حالة النظام: dx1 = x2, dx2 = -2*x2 + 4*u
+            // من: G(s) = 4/(s² + 2s) → ṳ1 = x2, ẋ2 = -2x2 + 4u
+            double dx1_open = x2_open;
+            double dx2_open = -2.0 * x2_open + 4.0 * u_open;
 
-            x1_before += dx1_b * dt;
-            x2_before += dx2_b * dt;
+            x1_open += dx1_open * dt;
+            x2_open += dx2_open * dt;
 
-            // ===== PID (compute control using closed-loop output) =====
-            double y_closed = x1_after;
-            double e = r - y_closed;
+            // ========== النظام المغلق (مع PID) ==========
+            double y_closed = x1_closed;
+            double error = r - y_closed;
 
-            integ += e * dt;
-            double deriv = (e - prevErr) / dt;
-            prevErr = e;
+            // حساب إشارة التحكم من PID
+            double u_closed = pidController.update(error, dt);
 
-            double u = kp * e + ki * integ + kd * deriv;
+            // تحديث حالة النظام المغلق
+            double dx1_closed = x2_closed;
+            double dx2_closed = -2.0 * x2_closed + 4.0 * u_closed;
 
-            // ===== AFTER PID (Closed-Loop) =====
-            double dx1_a = x2_after;
-            double dx2_a = -2.0 * x2_after + 4.0 * u;
+            x1_closed += dx1_closed * dt;
+            x2_closed += dx2_closed * dt;
 
-            x1_after += dx1_a * dt;
-            x2_after += dx2_a * dt;
-
-            double y_after = x1_after;
-
-            // store results
+            // حفظ النتائج
             result.time[k] = t;
-            result.outputBefore[k] = y_before;
-            result.outputAfter[k]  = y_after;
+            result.outputBefore[k] = y_open;
+            result.outputAfter[k] = y_closed;
+            result.controlSignal[k] = u_closed;
 
-            result.beforeSeries.add(new XYChart.Data<>(t, y_before));
-            result.afterSeries.add(new XYChart.Data<>(t, y_after));
+            result.beforeSeries.add(new XYChart.Data<>(t, y_open));
+            result.afterSeries.add(new XYChart.Data<>(t, y_closed));
         }
 
         return result;
